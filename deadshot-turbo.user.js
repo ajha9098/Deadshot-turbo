@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Deadshot.io Lite by SURAJ'S MOD
 // @namespace    http://tampermonkey.net/
-// @version      2.0
+// @version      2.1
 // @description  Deadshot Lite by SURAJ'S MOD - Performance Mode for Low-End Hardware
 // @author       SURAJ
 // @match        https://deadshot.io/*
