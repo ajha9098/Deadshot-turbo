@@ -6,7 +6,12 @@
 // @author       SURAJ
 // @match        https://deadshot.io/*
 // @grant        none
+// @license      MIT
 // @run-at       document-start
+// @homepageURL  https://github.com/ajha9098/Deadshot-turbo
+// @supportURL   https://github.com/ajha9098/Deadshot-turbo/issues
+// @downloadURL  https://update.greasyfork.org/scripts/594253/Deadshotio%20Lite%20by%20SURAJS%20MOD.user.js
+// @updateURL    https://update.greasyfork.org/scripts/594253/Deadshotio%20Lite%20by%20SURAJS%20MOD.meta.js
 // ==/UserScript==
 (function () {
     'use strict';
