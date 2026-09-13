@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         Deadshot.io Lite by SURAJ'S MOD
 // @namespace    http://tampermonkey.net/
-// @version      2.1
-// @description  Deadshot Lite by SURAJ'S MOD - Performance Mode for Low-End Hardware
+// @version      2.2
+// @description  Deadshot Lite by SURAJ'S MOD - Performance Mode + Experimental Frame Boost for Low-End Hardware
 // @author       SURAJ
 // @match        https://deadshot.io/*
 // @grant        none
@@ -103,6 +103,54 @@
     blockAdFetches();
 
     // ---------------------------------------------------------
+    // Experimental Frame Boost: reduce internal render resolution
+    // so the GPU has fewer pixels to shade per frame. Must run at
+    // document-start, before the game reads devicePixelRatio to
+    // size its canvas, or this has no effect.
+    // ---------------------------------------------------------
+    function readFrameBoostPref() {
+        try {
+            const saved = JSON.parse(localStorage.getItem('surajmod_settings_v1'));
+            return saved?.frameBoost ?? false;
+        } catch {
+            return false;
+        }
+    }
+
+    function applyDevicePixelRatioOverride() {
+        try {
+            Object.defineProperty(window, 'devicePixelRatio', {
+                configurable: true,
+                get() { return 1; }
+            });
+        } catch (_) {
+            // Some browsers may not allow redefining this; fail silently,
+            // the rest of frame boost still helps.
+        }
+    }
+
+    if (readFrameBoostPref()) {
+        applyDevicePixelRatioOverride();
+    }
+
+    // Patch canvas context creation globally: fixes the Chrome console
+    // hint about willReadFrequently, and disables smoothing (cheaper to
+    // render, matches "rougher but faster" preference).
+    (function patchCanvasContext() {
+        const originalGetContext = HTMLCanvasElement.prototype.getContext;
+        HTMLCanvasElement.prototype.getContext = function (type, attributes) {
+            if (type === '2d') {
+                attributes = Object.assign({}, attributes, { willReadFrequently: true });
+            }
+            const ctx = originalGetContext.call(this, type, attributes);
+            if (ctx && type === '2d' && 'imageSmoothingEnabled' in ctx) {
+                try { ctx.imageSmoothingEnabled = false; } catch (_) {}
+            }
+            return ctx;
+        };
+    })();
+
+    // ---------------------------------------------------------
     // Settings
     // ---------------------------------------------------------
     function loadSettings() {
@@ -112,10 +160,11 @@
                 adRemoval: saved?.adRemoval ?? true,
                 fpsOverlay: saved?.fpsOverlay ?? true,
                 perfMode: saved?.perfMode ?? true,
+                frameBoost: saved?.frameBoost ?? false,
                 panelVisible: saved?.panelVisible ?? true
             };
         } catch {
-            return { adRemoval: true, fpsOverlay: true, perfMode: true, panelVisible: true };
+            return { adRemoval: true, fpsOverlay: true, perfMode: true, frameBoost: false, panelVisible: true };
         }
     }
     function saveSettings() {
@@ -195,13 +244,61 @@
         }
     }
 
+    // ---------------------------------------------------------
+    // Experimental Frame Boost: shrink the canvas's actual pixel
+    // buffer (backing store) while keeping its displayed CSS size the
+    // same. The browser then upscales cheaply instead of the game
+    // rendering every frame at full resolution. This can make click/aim
+    // coordinates feel slightly off on games that don't recompute their
+    // internal-to-display ratio correctly — test after enabling.
+    // ---------------------------------------------------------
+    const downscaledCanvases = new WeakMap(); // canvas -> original {w, h, cssW, cssH}
+    const FRAME_BOOST_SCALE = 0.75;
+
+    function downscaleCanvas(canvas) {
+        if (canvas.width <= 400 || canvas.height <= 300) return; // skip small/UI canvases
+        if (downscaledCanvases.has(canvas)) return; // already handled
+
+        const rect = canvas.getBoundingClientRect();
+        const original = {
+            w: canvas.width,
+            h: canvas.height,
+            cssW: canvas.style.width || `${rect.width}px`,
+            cssH: canvas.style.height || `${rect.height}px`
+        };
+        downscaledCanvases.set(canvas, original);
+
+        canvas.style.width = original.cssW;
+        canvas.style.height = original.cssH;
+        canvas.width = Math.floor(original.w * FRAME_BOOST_SCALE);
+        canvas.height = Math.floor(original.h * FRAME_BOOST_SCALE);
+    }
+
+    function restoreCanvas(canvas) {
+        const original = downscaledCanvases.get(canvas);
+        if (!original) return;
+        canvas.width = original.w;
+        canvas.height = original.h;
+        canvas.style.width = '';
+        canvas.style.height = '';
+        downscaledCanvases.delete(canvas);
+    }
+
+    function applyFrameBoost(enable) {
+        document.querySelectorAll('canvas').forEach(c => {
+            if (enable) downscaleCanvas(c);
+            else restoreCanvas(c);
+        });
+    }
+
     // Watch for canvases added after load (game re-init, resolution changes)
     function watchCanvases() {
         const obs = new MutationObserver((mutations) => {
-            if (!settings.perfMode) return;
             for (const m of mutations) {
                 m.addedNodes.forEach(node => {
-                    if (node.nodeName === 'CANVAS') applyCanvasDownscale(node);
+                    if (node.nodeName !== 'CANVAS') return;
+                    if (settings.perfMode) applyCanvasDownscale(node);
+                    if (settings.frameBoost) downscaleCanvas(node);
                 });
             }
         });
@@ -334,6 +431,9 @@
         makeToggle('Performance mode', 'Cuts effects for higher FPS', 'perfMode', (v) => {
             applyPerfMode(v);
         });
+        makeToggle('Experimental Frame Boost', 'Lowers render res — reload after toggling', 'frameBoost', (v) => {
+            applyFrameBoost(v);
+        });
         makeToggle('FPS overlay', 'Shows live frame rate', 'fpsOverlay', (v) => {
             if (fpsDisplay) fpsDisplay.style.display = v ? 'block' : 'none';
         });
@@ -377,6 +477,7 @@
 
         if (settings.adRemoval) startAdRemoval();
         if (settings.perfMode) applyPerfMode(true);
+        if (settings.frameBoost) applyFrameBoost(true);
         watchCanvases();
 
         rafId = requestAnimationFrame(updateFPS);
