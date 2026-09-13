@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Deadshot.io Lite by SURAJ'S MOD
 // @namespace    http://tampermonkey.net/
-// @version      2.2
+// @version      2.3
 // @description  Deadshot Lite by SURAJ'S MOD - Performance Mode + Experimental Frame Boost for Low-End Hardware
 // @author       SURAJ
 // @match        https://deadshot.io/*
@@ -17,6 +17,7 @@
     'use strict';
 
     const AD_SELECTORS = ['.adsbyvli', '[id^="banner"]', '[id^="google_ads_iframe"]'];
+    const SCRIPT_VERSION = '2.3'; // keep this in sync with the @version line above
     const BLOCKED_URL_PATTERNS = [
         'ad-manager.js', 'pubads_impl', 'gpt.js', 'googlesyndication',
         'doubleclick', 'adsbygoogle'
@@ -372,7 +373,7 @@
             fontWeight: '700', fontSize: '13px', color: '#f0fdfa',
             display: 'flex', justifyContent: 'space-between', alignItems: 'center'
         });
-        header.innerHTML = `<span style="letter-spacing:0.5px">✦ 𝗦𝗨𝗥𝗔𝗝'𝗦 𝗠𝗢𝗗</span><span style="font-size:10px;opacity:0.6;font-weight:400">.lite v2.0</span>`;
+        header.innerHTML = `<span style="letter-spacing:0.5px">✦ 𝗦𝗨𝗥𝗔𝗝'𝗦 𝗠𝗢𝗗</span><span style="font-size:10px;opacity:0.6;font-weight:400">.lite v${SCRIPT_VERSION}</span>`;
         togglePanel.appendChild(header);
 
         const body = document.createElement('div');
